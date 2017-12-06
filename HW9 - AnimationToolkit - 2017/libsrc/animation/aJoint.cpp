@@ -206,9 +206,31 @@ void AJoint::updateTransform()
 
 	// TODO: Compute mLocal2Global for the joint, which allows vectors to be transformed from local coordinates to world coordinates
 
+	//The global transformation matrix is the product of the local transformation matrix and all the transformation matrix from the root to the immediate parent, root first local last.
+	//This is equivalent to just the parent's global matrix times the local
+	//The following function returns a transformation matrix, one I would heavily guess is the parent's. Although part of the next assignment, aTarget seems to confirm this
+	//ATransform lastglobal = getLocal2Parent();
+
+	mLocal2Global = getLocal2Parent();
+	//aTarget's update helped guide this, but there really wasn't much variety possible in the function design
+	if (mParent != NULL) {
+		//mLocal2Global = lastglobal;
+		ATransform theothermatrix = mParent->getLocal2Global();
+		mLocal2Global = theothermatrix*mLocal2Global;
+	}
+	//else {
+
+	//}
 
 	// TODO: Also update mLocal2Global for each of the children
 
+	//mChildren.size() and mChildren[index] are used inside the functions used below. I presumed there was a reason to use the functions instead
+	//However I couldn't actually figure out how to use getChildAt, so none of that
+	for (int t = 0; t < getNumChildren(); t += 1)
+	{
+		AJoint* curChild = mChildren[t];
+		curChild->updateTransform();
+	}
 
 }
 

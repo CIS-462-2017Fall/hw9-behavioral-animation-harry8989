@@ -162,7 +162,9 @@ void BehaviorController::control(double deltaT)
 
 		// TODO: insert your code here to compute m_force and m_torque
 
-
+		float Kv;
+		Kv = 1;
+		m_force = gMass*Kv*(m_Vdesired - m_state[VEL]);
 
 
 
@@ -213,6 +215,14 @@ void BehaviorController::computeDynamics(vector<vec3>& state, vector<vec3>& cont
 	// TODO: add your code here
 
 
+	//Looking at the aBehaviorController.h gives me ideas for most if not all
+	stateDot[0] = state[2];
+	stateDot[1] = state[3];
+	stateDot[2] = force / gMass;
+	stateDot[3] = torque / gInertia;
+
+
+
 
 
 
@@ -225,7 +235,35 @@ void BehaviorController::updateState(float deltaT, int integratorType)
 
 	// TODO: add your code here
 	
+	//Basically copied from my aParticle.cpp version
+	//It's RK2
+	computeDynamics(m_state, m_controlInput, m_stateDot, deltaT);
 
+	//TODO:  Add your code here to update the state using EULER and Runge Kutta2  integration
+	if (integratorType == 0) {
+		for (int i = 0; i <= 3; i++)
+		{
+			m_state[i] = m_state[i] + deltaT*m_stateDot[i];
+		}
+	}
+	else //RK2 default
+	{
+
+		vector<vec3> predictedstate;
+		vector<vec3> predictedstateDot;
+		for (int j = 0; j <= 3; j++)
+		{
+			predictedstate[j] = m_state[j] + deltaT*m_stateDot[j];
+		}
+
+		computeDynamics(predictedstate, m_controlInput, predictedstateDot, deltaT);//
+
+		for (int k = 0; k <= 3; k++)
+		{
+			predictedstate[k] = m_state[k] + 0.5*deltaT*(m_stateDot[k] + predictedstateDot[k]);
+		}
+
+	}
 
 
 
@@ -241,8 +279,10 @@ void BehaviorController::updateState(float deltaT, int integratorType)
 	//  Perform validation check to make sure all values are within MAX values
 	// TODO: add your code here
 
-
-
+	double speed = sqrt(m_VelB[0] * m_VelB[0] + m_VelB[1] * m_VelB[1] + m_VelB[2] * m_VelB[2]);
+	double angspeed = sqrt(m_VelB[0] * m_VelB[0] + m_VelB[1] * m_VelB[1] + m_VelB[2] * m_VelB[2]);
+	//m_VelB[0] = max(m_VelB[0], gMaxSpeed[0]);
+	//m_AVelB = max(m_VelB, gMaxAngularSpeed);
 
 
 

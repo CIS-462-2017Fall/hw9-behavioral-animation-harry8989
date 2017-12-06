@@ -161,7 +161,17 @@ void AParticle::computeDynamics(vector<float>& state, vector<float>& stateDot, f
 {
 	//TODO: Add your code here
 
-	
+	stateDot[0] = state[3];
+	stateDot[1] = state[4];
+	stateDot[2] = state[5];
+	stateDot[3] = (state[6] / state[9]);
+	stateDot[4] = (state[7] / state[9]);
+	stateDot[5] = (state[8] / state[9]);
+	stateDot[6] = 0.0;//Assume acceleration is a constant with respect to time
+	stateDot[7] = 0.0;//Assume acceleration is a constant with respect to time
+	stateDot[8] = 0.0;//Assume acceleration is a constant with respect to time
+	stateDot[9] = 0.0;
+	stateDot[10] = -1.0;
 
 
 
@@ -181,6 +191,17 @@ void AParticle::updateState(float deltaT, int integratorType)
 		case EULER:
 			// Add your code here
 
+			//X at the updated state equals the old X plus (derived X times deltaT). For the positions, derivative is velocity. For velocities, force divided by mass.
+			//m_state[0] = m_state[0] + deltaT*m_state[3];
+			//m_state[1] = m_state[1] + deltaT*m_state[4];
+			//m_state[2] = m_state[2] + deltaT*m_state[5];
+			//m_state[3] = m_state[3] + deltaT*(m_state[6] / m_state[9]);
+			//m_state[4] = m_state[4] + deltaT*(m_state[7] / m_state[9]);
+			//m_state[5] = m_state[5] + deltaT*(m_state[8] / m_state[9]);
+			for (int i = 0; i <= 10; i++)
+			{
+				m_state[i] = m_state[i] + deltaT*m_stateDot[i];
+			}
 
 
 			break;
@@ -189,8 +210,20 @@ void AParticle::updateState(float deltaT, int integratorType)
 		{
 			
 			// Add your code here
+			vector<float> predictedstate;
+			vector<float> predictedstateDot;
+			for (int j = 0; j <= 10; j++)
+			{
+				predictedstate[j] = m_state[j] + deltaT*m_stateDot[j];
+			}
 
+			computeDynamics(predictedstate, predictedstateDot, deltaT);
 
+			for (int k = 0; k <= 10; k++)
+			{
+				predictedstate[k] = m_state[k] + 0.5*deltaT*(m_stateDot[k] + predictedstateDot[k]);
+			}
+			
 			break;
 		}
 	}

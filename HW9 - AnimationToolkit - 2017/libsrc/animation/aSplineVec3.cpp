@@ -245,6 +245,8 @@ void AInterpolatorVec3::interpolate(const std::vector<ASplineVec3::Key>& keys,
 			// TODO: Compute u, fraction of duration between segment and segmentnext, for example,
             // u = 0.0 when t = keys[segment-1].first  
             // u = 1.0 when t = keys[segment].first
+			u = (t - keys[segment].first) / (keys[segment + 1].first - keys[segment].first);
+
 
             val = interpolateSegment(keys, ctrlPoints, segment, u);
             curve.push_back(val);
@@ -275,6 +277,7 @@ vec3 ALinearInterpolatorVec3::interpolateSegment(
     // TODO: 
 	//Step 1: Create a Lerp helper function
 	//Step 2: Linear interpolate between key0 and key1 so that u = 0 returns key0 and u = 1 returns key1
+	curveValue = key0 + (key1 - key0)*u;
     
 	return curveValue;
 }
@@ -292,6 +295,18 @@ vec3 ABernsteinInterpolatorVec3::interpolateSegment(
     // TODO: 
 	// Step1: Get the 4 control points, b0, b1, b2 and b3 from the ctrlPoints vector
 	// Step2: Compute the interpolated value f(u) point using  Bernstein polynomials
+	b0 = ctrlPoints[4*segment];
+	b1 = ctrlPoints[4 * segment + 1];
+	b2 = ctrlPoints[4 * segment + 2];
+	b3 = ctrlPoints[4 * segment + 3];
+	//Bernstein Polynomials
+	float B30 = pow((1.0 - t), 3.0);
+	float B31 = 3.0*t*pow((1.0 - t), 2.0);
+	float B32 = 3.0*pow(t, 2.0)*(1.0 - t);
+	float B33 = pow(t,3.0);
+	//Combine
+	curveValue = b0*B30 + b1*B31 + b2*B32 + b3*B33;
+
     
 	return curveValue;
 
@@ -312,6 +327,21 @@ vec3 ACasteljauInterpolatorVec3::interpolateSegment(
 	// TODO: 
 	// Step1: Get the 4 control points, b0, b1, b2 and b3 from the ctrlPoints vector
 	// Step2: Compute the interpolated value f(u) point using  deCsteljau alogithm
+	b0 = ctrlPoints[4 * segment];
+	b1 = ctrlPoints[4 * segment + 1];
+	b2 = ctrlPoints[4 * segment + 2];
+	b3 = ctrlPoints[4 * segment + 3];
+	//Start linearly interpolating between these points
+	vec3 b10 = b0*(1.0 - t) + b1*t;
+	vec3 b11 = b1*(1.0 - t) + b2*t;
+	vec3 b12 = b2*(1.0 - t) + b3*t;
+	//Second level of linear interpolation
+	vec3 b20 = b10*(1.0 - t) + b11*t;
+	vec3 b21 = b11*(1.0 - t) + b12*t;
+	//Third level of linear interpolation
+	vec3 b30 = b20*(1.0 - t) + b21*t;
+	//Use result
+	curveValue = b30;
 	
 	return curveValue;
 }
@@ -332,6 +362,53 @@ vec3 AMatrixInterpolatorVec3::interpolateSegment(
 	// Step2: Compute the interpolated value f(u) point using  matrix method f(u) = GMU
 	// Hint: Using Eigen::MatrixXd data representations for a matrix operations
 
+	b0 = ctrlPoints[4 * segment];
+	b1 = ctrlPoints[4 * segment + 1];
+	b2 = ctrlPoints[4 * segment + 2];
+	b3 = ctrlPoints[4 * segment + 3];
+	//Create Matrices
+	Eigen::MatrixXd GBezier(3,4);
+	GBezier(0, 0) = b0[0];
+	GBezier(0, 1) = b1[0];
+	GBezier(0, 2) = b2[0];
+	GBezier(0, 3) = b3[0];
+	GBezier(1, 0) = b0[1];
+	GBezier(1, 1) = b1[1];
+	GBezier(1, 2) = b2[1];
+	GBezier(1, 3) = b3[1];
+	GBezier(2, 0) = b0[2];
+	GBezier(2, 1) = b1[2];
+	GBezier(2, 2) = b2[2];
+	GBezier(2, 3) = b3[2];
+	Eigen::MatrixXd MBezier(4, 4);
+	MBezier(0, 0) = 1;
+	MBezier(0, 1) = -3;
+	MBezier(0, 2) = 3;
+	MBezier(0, 3) = -1;
+	MBezier(1, 0) = 0;
+	MBezier(1, 1) = 3;
+	MBezier(1, 2) = -6;
+	MBezier(1, 3) = 3;
+	MBezier(2, 0) = 0;
+	MBezier(2, 1) = 0;
+	MBezier(2, 2) = 3;
+	MBezier(2, 3) = -3;
+	MBezier(3, 0) = 0;
+	MBezier(3, 1) = 0;
+	MBezier(3, 2) = 0;
+	MBezier(3, 3) = 1;
+	Eigen::Vector4d WeirdU;
+	WeirdU(0) = 1;
+	WeirdU(1) = t;
+	WeirdU(2) = pow(t, 2);
+	WeirdU(3) = pow(t, 3);
+	//Combine
+	Eigen::MatrixXd GMU = GBezier*MBezier*WeirdU;
+	
+	//Extract
+	curveValue.set(GMU(0), GMU(1), GMU(2));
+	//std::cout << MBezier << std::endl;
+
 	return curveValue;
 }
 
@@ -347,11 +424,55 @@ vec3 AHermiteInterpolatorVec3::interpolateSegment(
     vec3 q1 = ctrlPoints[segment + 1]; // slope at p1
 	vec3 curveValue(0, 0, 0);
 
-    // TODO: Compute the interpolated value h(u) using a cubic Hermite polynomial  
+    // TODO: Compute the interpolated value h(u) using a cubic Hermite polynomial
+	curveValue = (2.0*pow(t, 3.0) - 3.0*pow(t, 2.0) + 1.0)*p0 + (-2.0*pow(t, 3.0) + 3.0*pow(t, 2.0))*p1 + (pow(t, 3.0) - 2.0*pow(t, 2.0) + t)*q0 + (pow(t, 3.0) - pow(t, 2.0))*q1;
 
     return curveValue;
 }
 
+//Create helper function for BSplines
+double dN(Eigen::MatrixXd knots, int n, int j, double t, int l)
+{
+	if (n == 0) {
+		if ((t >= knots(j)) && (t<knots(j + 1))) {
+			return 1.0;
+		}
+		else {
+			return 0.0;
+		}
+	}
+	else {
+		if (l == 0) {
+			return dN(knots, (n - 1), j, t, l)*((t - knots(j)) / (knots((j + n)) - knots(j))) + dN(knots, (n - 1), (j + 1), t, l)*((knots((j + n + 1)) - t) / (knots((j + n + 1)) - knots((j + 1))));
+		}
+		else {
+			return n*(dN(knots, (n - 1), j, t, l - 1)*(1 / (knots((j + n)) - knots(j))) - dN(knots, (n - 1), (j + 1), t, l - 1)*(1 / (knots((j + n + 1)) - knots((j + 1)))));
+		}
+	}
+}
+int fauxknots(int input) {
+	return input - 3;
+}
+double dNN(int n, int j, double t, int l)
+{
+	
+	if (n == 0) {
+		if ((t >= fauxknots(j)) && (t<fauxknots(j + 1))) {
+			return 1.0;
+		}
+		else {
+			return 0.0;
+		}
+	}
+	else {
+		if (l == 0) {
+			return dNN((n - 1), j, t, l)*((t - fauxknots(j)) / (fauxknots((j + n)) - fauxknots(j))) + dNN((n - 1), (j + 1), t, l)*((fauxknots((j + n + 1)) - t) / (fauxknots((j + n + 1)) - fauxknots((j + 1))));
+		}
+		else {
+			return n*(dNN((n - 1), j, t, l - 1)*(1 / (fauxknots((j + n)) - fauxknots(j))) - dNN((n - 1), (j + 1), t, l - 1)*(1 / (fauxknots((j + n + 1)) - fauxknots((j + 1)))));
+		}
+	}
+}
 
 vec3 ABSplineInterpolatorVec3::interpolateSegment(
     const std::vector<ASplineVec3::Key>& keys,
@@ -371,6 +492,11 @@ vec3 ABSplineInterpolatorVec3::interpolateSegment(
 	// Step 3: get the corresponding control points from the ctrlPoints vector
 	// Step 4: compute the Bspline curveValue at time t
 
+	int j = 3 + segment;
+
+	if (keys.size() > 1) {
+		curveValue = ctrlPoints[(j - 3)] * dNN(3, (j - 3), t, 0) + ctrlPoints[(j - 2)] * dNN(3, (j - 2), t, 0) + ctrlPoints[(j - 1)] * dNN(3, (j - 1), t, 0) + ctrlPoints[j] * dNN(3, j, t, 0);
+	}
 
 	
 	return curveValue;
@@ -389,6 +515,20 @@ void ACubicInterpolatorVec3::computeControlPoints(
         vec3 b0, b1, b2, b3;
 
         // TODO: compute b0, b1, b2, b3
+		b0 = keys[i - 1].second;
+		b3 = keys[i].second;
+		if (i - 2 == -1) {
+			b1= keys[i - 1].second + ((keys[i].second - startPoint) / 2) / 3;
+		}
+		else {
+			b1 = keys[i - 1].second + ((keys[i].second - keys[i - 2].second) / 2) / 3;
+		}
+		if (i + 1 == keys.size()) {
+			b2 = keys[i].second - ((endPoint - keys[i - 1].second) / 2) / 3;
+		}
+		else {
+			b2 = keys[i].second - ((keys[i + 1].second - keys[i - 1].second) / 2) / 3;
+		}
 
         ctrlPoints.push_back(b0);
         ctrlPoints.push_back(b1);
@@ -420,6 +560,68 @@ void AHermiteInterpolatorVec3::computeControlPoints(
 	// Step 2: Initialize D
 	// Step 3: Solve AC=D for C
 	// Step 4: Save control points in ctrlPoints
+	Eigen::MatrixXd A(numKeys, numKeys);
+	Eigen::MatrixXd D(numKeys, 3);
+
+	//Initialize top and bottom rows of A and D
+	//Top and bottom of A
+	A(0, 0) = 2.0;
+	A(0, 1) = 1.0;
+	A((numKeys-1), (numKeys - 2)) = 1.0;
+	A((numKeys - 1), (numKeys - 1)) = 2.0;
+	for (int k = 2; k < numKeys; k++)
+	{
+		A(0, k) = 0.0;
+		A((numKeys - 1), k-2) = 0.0;
+	}
+	//Top and bottom of D
+	vec3 p0 = keys[0].second;
+	vec3 p1 = keys[1].second;
+	D(0, 0) = 3.0 * (p1[0] - p0[0]);
+	D(0, 1) = 3.0 * (p1[1] - p0[1]);
+	D(0, 2) = 3.0 * (p1[2] - p0[2]);
+	vec3 pN = keys[(numKeys - 1)].second;
+	vec3 pNMinusOne = keys[(numKeys - 2)].second;
+	D((numKeys - 1), 0) = 3.0 * (pN[0] - pNMinusOne[0]);
+	D((numKeys - 1), 1) = 3.0 * (pN[1] - pNMinusOne[1]);
+	D((numKeys - 1), 2) = 3.0 * (pN[2] - pNMinusOne[2]);
+
+	//Initialize the rest of A and D
+	for (int i = 1; i < (numKeys-1); i++)
+	{
+		//Row of A
+		for (int m = 0; m < (i-1); m++)
+		{
+			A(i, m) = 0.0;
+		}
+		A(i, (i - 1)) = 1.0;
+		A(i, i) = 4.0;
+		A(i, (i + 1)) = 1.0;
+		for (int j = (i+2); j < numKeys; j++)
+		{
+			A(i, j) = 0.0;
+		}
+		//Row of D
+		vec3 pNMinusTwo = keys[i-1].second;
+		vec3 pNN = keys[i+1].second;//So as not to be confused with pN in the code, still pN symbolically
+		D(i, 0) = 3.0 * (pNN[0] - pNMinusTwo[0]);
+		D(i, 1) = 3.0 * (pNN[1] - pNMinusTwo[1]);
+		D(i, 2) = 3.0 * (pNN[2] - pNMinusTwo[2]);
+		
+	}
+
+	//Calculate C
+	Eigen::MatrixXd C = A.inverse()*D;
+
+	//Extract control points
+	for (int i = 0; i < numKeys; i++)
+	{
+		vec3 pNPrime;
+
+		pNPrime.set(C(i,0), C(i,1), C(i,2));
+
+		ctrlPoints.push_back(pNPrime);
+	}
 
 }
 
@@ -455,4 +657,106 @@ void ABSplineInterpolatorVec3::computeControlPoints(
 	// Step 4: Solve AC=D for C 
 	
 	// Step 5: save control points in ctrlPoints
+	
+
+
+	//Get m, number of partitions
+	int m = keys.size() - 1;
+
+	//Create knot vector
+	//You could theoretically do this by just appending and prepending to a copy of keys- I'm not confident enough to try
+	Eigen::MatrixXd KnotVector(1, (keys.size() + 6));
+	//Initialize the first three and last three lambdas
+	double t0 = keys[0].first;
+	double t1 = keys[1].first;
+	double tm = keys[m].first;
+	double tmminusone = keys[(m - 1)].first;
+	KnotVector(2) = t0 - (t1 - t0);
+	KnotVector(1) = t0 - 2.0*(t1 - t0);
+	KnotVector(0) = t0 - 3.0*(t1 - t0);
+	KnotVector((m + 4)) = tm + (tm - tmminusone);
+	KnotVector((m + 5)) = tm + 2.0*(tm - tmminusone);
+	KnotVector((m + 6)) = tm + 3.0*(tm - tmminusone);
+	//Extract the rest of the lambdas from the times
+	for (int kk = 3; kk < keys.size()+3; kk++)
+	{
+		KnotVector(kk) = keys[(kk - 3)].first;
+	}
+	
+
+	Eigen::MatrixXd Ab((m + 3), (m + 3));
+	Eigen::MatrixXd Db((m + 3), 3);
+
+	//Initialize top and bottom rows of A and D
+	//Top and bottom of A
+	Ab(0, 0) = dN(KnotVector, 3, 0, t0, 2);
+	Ab(0, 1) = dN(KnotVector, 3, 1, t0, 2);
+	Ab(0, 2) = dN(KnotVector, 3, 2, t0, 2);
+	Ab(0, 3) = dN(KnotVector, 3, 3, t0, 2);
+	Ab(((m + 3) - 1), ((m + 3) - 4)) = dN(KnotVector, 3, (m-1), tm, 2);
+	Ab(((m + 3) - 1), ((m + 3) - 3)) = dN(KnotVector, 3, m, tm, 2);
+	Ab(((m + 3) - 1), ((m + 3) - 2)) = dN(KnotVector, 3, (m+1), tm, 2);
+	Ab(((m + 3) - 1), ((m + 3) - 1)) = dN(KnotVector, 3, (m+2), tm, 2);
+	for (int k = 4; k < (m+3); k++)
+	{
+		Ab(0, k) = 0.0;
+		Ab(((m+3) - 1), k - 4) = 0.0;
+	}
+	//Top and bottom of D
+	Db(0, 0) = 0.0;
+	Db(0, 1) = 0.0;
+	Db(0, 2) = 0.0;
+	Db(((m + 3) - 1), 0) = 0.0;
+	Db(((m + 3) - 1), 1) = 0.0;
+	Db(((m + 3) - 1), 2) = 0.0;
+
+	//Initialize the rest of A and D
+	for (int i = 1; i < ((m + 3) - 1); i++)
+	{
+		//Row of A
+		
+		Ab(i, (i - 1)) = dN(KnotVector, 3, (i - 1), keys[(i - 1)].first, 0);
+		Ab(i, i) = dN(KnotVector, 3, i, keys[(i - 1)].first, 0);
+		Ab(i, (i + 1)) = dN(KnotVector, 3, (i + 1), keys[(i - 1)].first, 0);
+		if ((i + 2) == (m + 3)) {
+			//Special case for second-to-last-row
+			Ab(i, (i - 2)) = dN(KnotVector, 3, (i - 2), keys[(i - 1)].first, 0);
+			for (int jj = 0; jj < (i - 2); jj++)
+			{
+				Ab(i, jj) = 0.0;
+			}
+		}
+		else {
+			Ab(i, (i + 2)) = dN(KnotVector, 3, (i + 2), keys[(i - 1)].first, 0);
+			for (int jj = 0; jj < (i - 1); jj++)
+			{
+				Ab(i, jj) = 0.0;
+			}
+		}
+		for (int j = (i + 3); j < (m + 3); j++)
+		{
+			Ab(i, j) = 0.0;
+		}
+		//Row of D
+		vec3 pj = keys[(i - 1)].second;
+		Db(i, 0) = pj[0];
+		Db(i, 1) = pj[1];
+		Db(i, 2) = pj[2];
+
+	}
+
+	//Calculate C
+	Eigen::MatrixXd Cb = Ab.inverse()*Db;
+
+	//std::cout << Ab << std::endl;
+
+	//Extract control points
+	for (int i = 0; i < m+3; i++)
+	{
+		vec3 cj;
+
+		cj.set(Cb(i, 0), Cb(i, 1), Cb(i, 2));
+
+		ctrlPoints.push_back(cj);
+	}
 }

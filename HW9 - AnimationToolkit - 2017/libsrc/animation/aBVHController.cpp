@@ -58,7 +58,39 @@ void BVHController::update(double time)
 {
 	ASkeleton* skeleton = mActor->getSkeleton();
 
-	// TODO: Update transforms at each Skeleton joint given spline motion data in mRootMotion and mMotion for value of time. 
+	// TODO: Update transforms at each Skeleton joint given spline motion data in mRootMotion and mMotion for value of time.
+
+	// do something with mRootMotion
+	// do the same thing with mMotion
+	// do something like skeleton.update();
+
+	//Get the base translation from the root
+	vec3 OnlyDirectTranslate = mRootMotion.getValue(time);
+
+	//Get the rotation to each joint from mMotion
+	for (int m = 0; m < mMotion.size(); m += 1)
+	{
+		ASplineQuat currentquaternion = mMotion[m];
+		quat realquaternion= currentquaternion.getCachedValue(time);mat3 rotmreal = realquaternion.ToRotation();
+		//Right now we have the rotation needed for the current joint and a translation has been applied to the body from the root
+		//The repeated nature of this for loop means we may have other things to draw on as well, like the position of parent nodes and the current local matrix
+		
+		AJoint* thisjoint = skeleton->getJointByID(m);
+		if (thisjoint->getParent() == NULL) {
+			ATransform newpos = ATransform(rotmreal, OnlyDirectTranslate);
+			thisjoint->setLocal2Parent(newpos);
+		}
+		else {
+			thisjoint->setLocalRotation(rotmreal);
+			//After all that effort, this was all that was needed.
+
+		}
+
+		
+		
+	}
+	
+	skeleton->update();
 
 
 

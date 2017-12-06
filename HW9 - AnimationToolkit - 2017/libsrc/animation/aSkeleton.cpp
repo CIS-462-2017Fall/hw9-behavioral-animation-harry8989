@@ -123,6 +123,9 @@ void ASkeleton::update()
 
 	// TODO: Update  Joint Transforms recursively, starting at the root
 
+	//The update for Joint affects every child. All nodes are children of the root somewhere down the line
+	mRoot->updateTransform();
+
 }
 
 AJoint* ASkeleton::getJointByName(const std::string& name) const

@@ -33,7 +33,16 @@ ATransform ATransform::Inverse() const
 
 	// TODO: compute the inverse of a transform given the current rotation and translation components
 
+	//Pull the data
+	mat3 rotatemine = m_rotation;
+	vec3 translatemine = m_translation;
 
+	//Create the eventually-twice-used translated original rotation matrix
+	mat3 m_r_translated = rotatemine.Transpose();
+
+	//Invert
+	result.m_rotation = m_r_translated;
+	result.m_translation = -(m_r_translated*translatemine);
  
 
 	return result;
@@ -46,7 +55,11 @@ vec3 ATransform::RotTrans(const vec3& vecToTransform) const
 
 	// TODO: Transform the input vector based on this transform's rotation and translation components
 
+	result = m_rotation*vecToTransform;
 
+	result[0] = result[0] + m_translation[0];
+	result[1] = result[1] + m_translation[1];
+	result[2] = result[2] + m_translation[2];
 
  
 
@@ -60,7 +73,7 @@ vec3 ATransform::Rotate(const vec3& vecToTransform) const
 
 	// TODO: Transform the input direction based on this transform's rotation component
 
-
+	result = m_rotation*result;
 
  
 
@@ -73,7 +86,9 @@ vec3 ATransform::Translate(const vec3& vecToTransform) const
 
 	// TODO: Transform the input vector based on this transform's translation component
 
-
+	result[0] = vecToTransform[0] + m_translation[0];
+	result[1] = vecToTransform[1] + m_translation[1];
+	result[2] = vecToTransform[2] + m_translation[2];
 
  
 
@@ -87,7 +102,11 @@ ATransform operator * (const ATransform& H1, const ATransform& H2)
 
 	// TODO: implement the equivalent of multiplying  H1 and H2 transformation matrices and return the result
 
-
+	//Pull the one piece of data that will be reused
+	mat3 first_r = H1.m_rotation;
+	//Pull the rest of the data, make the calculations, and place it into the output
+	result.m_rotation = first_r*H2.m_rotation;
+	result.m_translation = first_r*H2.m_translation + H1.m_translation;
 
  
 

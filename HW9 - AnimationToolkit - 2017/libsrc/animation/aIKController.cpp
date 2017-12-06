@@ -152,6 +152,16 @@ AIKchain IKController::createIKchain(int endJointID, int desiredChainSize, ASkel
 
 		// TODO: add code here to generate chain of desired size or terminate at the joint before root joint, so that root will not change during IK	
 		// also add weight values to corresponding weights vector  (default value = 0.1)
+		AJoint* Parent = pJoint->getParent();
+		int chainsize = 0;
+		while ((Parent != NULL)&&((getMaxSize)||(chainsize<=desiredChainSize))) {//Parent is null when this joint is the root
+			//Adds to chain if current node is before the root and either we want the max size or we haven't yet added desiredChainSize joints
+			chain.push_back(pJoint);
+			weights.push_back(mWeight0);
+			pJoint = Parent;
+			Parent = pJoint->getParent();
+			chainsize += 1;
+		}
 
 	}
 	AIKchain result;
@@ -273,22 +283,81 @@ int IKController::computeLimbIK(ATarget target, AIKchain& IKchain, const vec3 mi
 
 		//TODO:
 		// 1. compute error vector between target and end joint
-
+		vec3 errorvec = mTarget0.getGlobalTranslation() - m_pEndJoint->getGlobalTranslation();//Just for debug purposes
 		// 2. compute vector between end Joint and base joint
-
+		vec3 endbasevec = m_pEndJoint->getGlobalTranslation() - m_pBaseJoint->getGlobalTranslation();//Just for debug purposes
 		// 3. compute vector between target and base joint
+		vec3 r = mTarget0.getGlobalTranslation() - m_pBaseJoint->getGlobalTranslation();
 
-		// 4. Compute desired angle for middle joint 
+
+		// 4. Compute desired angle for middle joint
+		double lone = (m_pMiddleJoint->getGlobalTranslation() - m_pBaseJoint->getGlobalTranslation()).Length();
+		double ltwo = (m_pEndJoint->getGlobalTranslation() - m_pMiddleJoint->getGlobalTranslation()).Length();
+		double rd = r.Length();
+		
+		double acosme = -((lone*lone) + (ltwo*ltwo) - (rd*rd)) / (2 * lone*ltwo);
+		double middleang = acos(acosme);
+		if (acosme > 1.0) {//Covers acos range issues
+			middleang = acos(1.0);
+		}
+		if (acosme < -1.0) {
+			middleang = acos(-1.0);
+		}
+
+		//From slides, not actually needed
+		//double asinme = (ltwo*sin(middleang))/(rd);
+		//double angonez = asin(asinme);
+		//if (asinme > 1.0) {//Covers asin range issues
+		//	angonez = asin(1.0);
+		//}
+		//if (asinme < -1.0) {
+		//	angonez = asin(-1.0);
+		//}
+		//double angtwoz = middleang - M_PI;
 
 		// 5. given desired angle and midJointAxis, compute new local middle joint rotation matrix and update joint transform
+		mat3 newmid;
+		newmid.FromAxisAngle(midJointAxis, middleang);
+		//m_pMiddleJoint->setLocalRotation(newmid); OR m_pMiddleJoint->setLocalRotation(m_pMiddleJoint->getLocalRotation()*newmid); Whichever is correct
+		m_pMiddleJoint->setLocalRotation(newmid);
+
+		// 5. update joint transform
+		m_pMiddleJoint->updateTransform();
 	
 		// 6. compute vector between target and base joint
+		//See step 3
 
 		// 7. Compute base joint rotation axis (in global coords) and desired angle
+		vec3 bjraxis;
+		double baseang;
+		//m_pBaseJoint->getGlobalRotation().ToAxisAngle(bjraxis, baseang);//Keep the axis, want new angle.
+		
+		vec3 newendbasevec = m_pEndJoint->getGlobalTranslation() - m_pBaseJoint->getGlobalTranslation();
+		//vec3 newendbasevec = r;
+		double keydotproduct = r[0] * newendbasevec[0] + r[1] * newendbasevec[1] + r[2] * newendbasevec[2];
+		double acosmealso = (keydotproduct) / (newendbasevec.Length()*rd);
+		if (abs(newendbasevec.Length()) < 0.0001f) {//Deal with divide by zero error
+			acosmealso = 0;
+		}
+		baseang = acos(acosmealso);
+		if (acosmealso > 1.0) {//Covers acos range issues
+			baseang = acos(1.0);
+		}
+		if (acosmealso < -1.0) {
+			baseang = acos(-1.0);
+		}
+		bjraxis=((newendbasevec.Cross(r)).Normalize());
 
 		// 8. transform base joint rotation axis to local coordinates
+		vec3 localbjraxis = m_pBaseJoint->getGlobalRotation().Inverse()*bjraxis;
 
 		// 9. given desired angle and local rotation axis, compute new local rotation matrix and update base joint transform
+		mat3 newbase;
+		newbase.FromAxisAngle(localbjraxis, baseang);
+		//m_pBaseJoint->setLocalRotation(newbase); OR m_pBaseJoint->setLocalRotation(m_pBaseJoint->getLocalRotation()*newbase); Whichever is correct
+		m_pBaseJoint->setLocalRotation(m_pBaseJoint->getLocalRotation()*newbase);
+		//m_pBaseJoint->setLocalRotation(newbase);
+		m_pBaseJoint->updateTransform();
 	
 	}
 	return result;
@@ -411,18 +480,59 @@ int IKController::computeCCDIK(ATarget target, AIKchain& IKchain, ASkeleton* pIK
 	if ((endJointID >= 0) && (endJointID < pIKSkeleton->getNumJoints()))
 	{
 		//TODO:
+		
+		while (numIterations <= maxIterations) {
+			numIterations += 1;//Repeat the following at most maxIterations times
 
-		// 1. compute axis and angle for each joint in the IK chain (distal to proximal) in global coordinates
+			int curjointid = 1;//0 causes us to use endjoint first, causing deltaangj to have a divide by zero problem
+			vec3 endjointloc = m_pEndJoint->getGlobalTranslation();//Defined outside to allow early break
+			while (curjointid < chainSize) {
 
-		// 2. once you have the desired axis and angle, convert axis to local joint coords 
+				// 1. compute axis and angle for each joint in the IK chain (distal to proximal) in global coordinates
 
-		// 3. multiply angle by corresponding joint weight value
+				endjointloc = m_pEndJoint->getGlobalTranslation();
 
-		// 4. compute new local joint rotation matrix
+				AJoint* curjoint = IKchain.getJoint(curjointid);
+				vec3 ej = desiredEndPos - endjointloc;
+				vec3 rjn = endjointloc-curjoint->getGlobalTranslation();
+				double rjnrjndotproduct = rjn[0] * rjn[0] + rjn[1] * rjn[1] + rjn[2] * rjn[2];
+				double rjnejdotproduct = rjn[0] * ej[0] + rjn[1] * ej[1] + rjn[2] * ej[2];;
+				//double cj = 0.2;//Scalar gain that helps with convergence
 
-		// 5. update joint transform
+				//Angle and axis
+				//double deltaangj = cj*(((rjn.Cross(ej)).Length())/(rjnrjndotproduct+ rjnejdotproduct));
+				double deltaangj = (((rjn.Cross(ej)).Length()) / (rjnrjndotproduct + rjnejdotproduct));
+				vec3 ahat = ((rjn.Cross(ej)).Normalize());
 
-		// 6. repeat same operations above for each joint in the IKchain from end to base joint
+				// 2. once you have the desired axis and angle, convert axis to local joint coords 
+				vec3 localahat = curjoint->getGlobalRotation().Inverse()*ahat;
+
+				// 3. multiply angle by corresponding joint weight value
+				double weightedang = deltaangj*(IKchain.getWeight(curjointid));
+
+				// 4. compute new local joint rotation matrix
+				mat3 deltarj;
+				deltarj.FromAxisAngle(localahat, weightedang);
+				curjoint->setLocalRotation(curjoint->getLocalRotation()*deltarj);
+
+				// 5. update joint transform
+				curjoint->updateTransform();
+
+				// 6. repeat same operations above for each joint in the IKchain from end to base joint
+				//Inherent result of while loop
+				curjointid += 1;
+				endjointloc = m_pEndJoint->getGlobalTranslation();
+				if (abs((endjointloc - desiredEndPos).Length()) < epsilon) {
+					return true;
+					break;
+				}
+			}
+			//Check if we can just stop now
+			if (abs((endjointloc- desiredEndPos).Length()) < epsilon) {
+				return true;
+				break;
+			}
+		}
 
 	}
 	return result;

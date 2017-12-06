@@ -96,7 +96,22 @@ void AFireworks::fireRocket(float posx, float* color)
 	float stateVals[12] = { 0.0 };
 	
 	//TODO: Add your code here
+	stateVals[0] = posx;
+	stateVals[1] = posy;
+	stateVals[2] = 0;
 
+	float Speed = rand() % 61 + 60;//Random number between 60 and 120
+	float angbase = rand() % 41 + 70;//Random number between 70 and 110
+	stateVals[3] = cos(angbase*PI/ 180.0)*Speed;
+	stateVals[4] = sin(angbase*PI/180.0)*Speed;
+	stateVals[5] = 0.0;
+
+	stateVals[6] = 0;
+	stateVals[7] = -GRAVITY*50;
+	stateVals[8] = 0;
+
+	stateVals[9] = 50.0;
+	stateVals[10] = 10.0;
 
 
 
@@ -136,7 +151,7 @@ void AFireworks::explode(float rocketPosx, float rocketPosy, float rocketPosz,
 	*      the direction of the initial velocity of each spark should be uniformly distributed between 0 and 360 degrees
 	*      the total velocity of the spark at the time of its creation is the sum of the rocket velocity and the intial spark velocity
 	*  force on every spark is just the gravity.
-	*  spark mass is 50.
+	*  spark mass is 1
 	*  Total timeToLive of every spark is 10.
 	*/
 		
@@ -149,7 +164,9 @@ void AFireworks::explode(float rocketPosx, float rocketPosy, float rocketPosz,
 	float velocity = MAXVELOCITY;
 
 	// TODO: Add  code here to randomize the number of sparks and their initial velocity
-	 
+	numSparks = rand() % 51 + 10;//Random number between 10 and 60
+	float velocitymagnitude = rand() % 21 + 20;//Random number between 20 and 40
+	float pibasedconstant = (2.0*PI)/ numSparks;
 
 
 	for (int i = 0; i < numSparks; i++)
@@ -158,8 +175,20 @@ void AFireworks::explode(float rocketPosx, float rocketPosy, float rocketPosz,
 		// TODO: Add your code here
 
 	
+		stateVals[0] = rocketPosx;
+		stateVals[1] = rocketPosy;
+		stateVals[2] = 0.0;
 
+		stateVals[3] = rocketVelx+sin(i * pibasedconstant)*velocitymagnitude;
+		stateVals[4] = rocketVely+cos(i * pibasedconstant)*velocitymagnitude;
+		stateVals[5] = 0.0;
 
+		stateVals[6] = 0.0;
+		stateVals[7] = -GRAVITY;//Technically gravity times mass, which is 1.
+		stateVals[8] = 0.0;
+
+		stateVals[9] = 1.0;
+		stateVals[10] = 10.0;
 
 
 
@@ -172,6 +201,57 @@ void AFireworks::explode(float rocketPosx, float rocketPosy, float rocketPosz,
 	}
 }
 
+void AFireworks::trail(float rocketPosx, float rocketPosy, float rocketPosz,
+	float rocketVelx, float rocketVely, float rocketVelz, float* rocketColor)
+
+	/*	trail is called in AFireworks::update() while the rocket is flying.
+	*  Input: float posx. X position where smoke is generated.
+	*		   float posy. Y position where smoke is generated.
+	*		   float posy. Z position where smoke is generated.
+	*  Input: float velx. X velocity of rocket when smoke is generated.
+	*		   float vely. Y velocity of rocket when smoke is generated.
+	*		   float velz. Z velocity of rocket when smoke is generated.
+	*         float* color. color[0], color[1] and color[2] are the RGB color of the rocket. It will also be the color of the smoke it generates.
+	*/
+{
+
+	//Heavily based on explode.
+
+	float stateVals[12] = { 0.0 };
+
+	int numSparks = rand() % 2;//Random number between 0 and 2 (simulate irregular release)
+
+
+	for (int i = 0; i < numSparks; i++)
+	{
+		ASpark* newSpark = new ASpark(rocketColor);
+
+		stateVals[0] = rocketPosx;
+		stateVals[1] = rocketPosy;
+		stateVals[2] = rocketPosz;
+
+		stateVals[3] = -rocketVelx + rand() % 10;//Should shoot out in opposite direction, plus random number 0 to 10 to create a spread effect
+		stateVals[4] = -rocketVely + rand() % 10;
+		stateVals[5] = 0;
+
+		stateVals[6] = 0;
+		stateVals[7] = -GRAVITY;//Technically gravity times mass, which is 1.
+		stateVals[8] = 0;
+
+		stateVals[9] = 1;
+		stateVals[10] = 8;//Slight change for rather slight visual effect
+
+
+		//Make immune to bottom bouncing
+		newSpark->m_COR = -1;
+
+		newSpark->setState(stateVals);
+		newSpark->setAttractor(m_attractorPos);
+		newSpark->setRepeller(m_repellerPos);
+		newSpark->setWind(m_windForce);
+		sparks.push_back(newSpark);
+	}
+}
 
 // One simulation step 
 void AFireworks::update(float deltaT, int extForceMode)
@@ -202,7 +282,30 @@ void AFireworks::update(float deltaT, int extForceMode)
 
 	// Add you code here
 
+	for (unsigned int i = 0; i < rockets.size(); i++)
+	{
+		pRocket = rockets[index];
 
+		//Smoke generation
+		if (pRocket->m_mode == FLYING)
+		{
+			//This is the key line you would comment out to turn smoke generation off.
+			//Note that smoke does not bounce off the bottom and disappears slightly faster than an explosion (aesthetic choices, see trail function)
+			trail(pRocket->m_Pos[0], pRocket->m_Pos[1], pRocket->m_Pos[2], pRocket->m_Vel[0], pRocket->m_Vel[1], pRocket->m_Vel[2], pRocket->m_color);
+		}
+		
+		if (pRocket->m_explosionCount != -1)//if ((pRocket->m_explosionCount > -1)&&(pRocket->m_mode == EXPLOSION))
+		{
+			explode(pRocket->m_Pos[0], pRocket->m_Pos[1], pRocket->m_Pos[2], pRocket->m_Vel[0], pRocket->m_Vel[1], pRocket->m_Vel[2], pRocket->m_color);
+		}
+
+		if (pRocket->m_mode == DEAD)
+		{
+			rockets.erase(rockets.begin() + index);
+			delete pRocket;
+		}
+		else index++;
+	}
 
 
 

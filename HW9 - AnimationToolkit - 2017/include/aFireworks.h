@@ -42,6 +42,9 @@ public:
 	
 	//When the space key is pressed, the update functions calls this function to generate a rocket
 	void fireRocket(float pos, float* color);	
+
+	//My code to trail smoke while flying
+	void trail(float posx, float posy, float posz, float velx, float vely, float velz, float* color);
 	
 //Member variables:
 	//Vector containing pointers to ARocket. Rockets in this vector are either flying or generating sparks (FLYING, EXPLOSION, DEAD)

@@ -115,7 +115,9 @@ void ASpark::computeForces(int extForceMode)
 	{
 		//TODO: Add your code here
 
-
+		m_state[6] += m_windForce[0];
+		m_state[7] += m_windForce[1];
+		m_state[8] += m_windForce[2];
 	
 
 	}
@@ -123,9 +125,14 @@ void ASpark::computeForces(int extForceMode)
 	if (extForceMode & DRAG_ACTIVE)
 	{
 		//TODO: Add your code here
+		float airdensity = 0.25;
+		float dragcoeff = 1.0;
+		//Using the total aerodynamic drag equation, with A gone and cancellation applied
+		m_state[6] += -0.5*airdensity*m_Vel.Length()*dragcoeff*m_Vel[0];
+		m_state[7] += -0.5*airdensity*m_Vel.Length()*dragcoeff*m_Vel[1];
+		m_state[8] += -0.5*airdensity*m_Vel.Length()*dragcoeff*m_Vel[2];
 
 
-;
 	}
 
 
@@ -133,7 +140,12 @@ void ASpark::computeForces(int extForceMode)
 	if (extForceMode & ATTRACTOR_ACTIVE)
 	{
 		//TODO: Add your code here
-
+		float attractorstrength = 1.0;
+		vec3 displacementvec= (m_attractorPos - m_Pos);
+			
+		m_state[6] += attractorstrength*displacementvec[0];
+		m_state[7] += attractorstrength*displacementvec[1];
+		m_state[8] += attractorstrength*displacementvec[2];
 
 	
 	}
@@ -142,7 +154,12 @@ void ASpark::computeForces(int extForceMode)
 	if (extForceMode & REPELLER_ACTIVE)
 	{
 		//TODO: Add your code here
+		float repellerstrength = 1.0;
+		vec3 displacementvec = (m_repellerPos - m_Pos);
 
+		m_state[6] += -1.0*repellerstrength*displacementvec[0];
+		m_state[7] += -1.0*repellerstrength*displacementvec[1];
+		m_state[8] += -1.0*repellerstrength*displacementvec[2];
 
 	}
 
@@ -150,7 +167,9 @@ void ASpark::computeForces(int extForceMode)
 	if (extForceMode & RANDOM_ACTIVE)
 	{
 		//TODO: Add your code here
-
+		m_state[6] += rand() % 31 - 15;//Random number between -15 and 15
+		m_state[7] += rand() % 31 - 15;//Random number between -15 and 15
+		m_state[8] += rand() % 31 - 15;//Random number between -15 and 15
 
 
 	}
@@ -161,5 +180,10 @@ void ASpark::resolveCollisions()
 // resolves collisions of the spark with the ground
 {
 	//TODO: Add  code here that reverses the y value of the spark velocity vector when the y position value of the spark is < 0
+
+	if (m_state[1] <= 0){
+		m_state[4] = -m_COR*m_state[4];
+	}
+		
 
 }
