@@ -17,9 +17,12 @@ double BehaviorController::gMaxAngularSpeed = 200.0;
 double BehaviorController::gMaxForce = 2000.0;  
 double BehaviorController::gMaxTorque = 2000.0;
 double BehaviorController::gKNeighborhood = 500.0;   
-double BehaviorController::gOriKv = 1.0;    
-double BehaviorController::gOriKp = 1.0;  
-double BehaviorController::gVelKv = 1.0;    
+//double BehaviorController::gOriKv = 1.0;    
+//double BehaviorController::gOriKp = 1.0;  
+//double BehaviorController::gVelKv = 1.0;
+double BehaviorController::gOriKv = 32.0;
+double BehaviorController::gOriKp = 256.0;
+double BehaviorController::gVelKv = 10.0;
 double BehaviorController::gAgentRadius = 80.0;  
 double BehaviorController::gMass = 1;
 double BehaviorController::gInertia = 1;
@@ -157,16 +160,60 @@ void BehaviorController::control(double deltaT)
 
 		//  force and torque inputs are computed from vd and thetad as follows:
 		//              Velocity P controller : force = mass * Kv * (vd - v)
-		//              Heading PD controller : torque = Inertia * (-Kv * thetaDot -Kp * (thetad - theta))
+		//              Heading PD controller : torque = Inertia * (-Kv * thetaDot + Kp * (thetad - theta))
 		//  where the values of the gains Kv and Kp are different for each controller
 
 		// TODO: insert your code here to compute m_force and m_torque
 
-		float Kv;
-		Kv = 1;
-		m_force = gMass*Kv*(m_Vdesired - m_state[VEL]);
+
+		//The Kv , Kv, and Kp have already been changed in the place from which they are drawn
+		//They were based on calculations done elsewhere
+		//m_force = gMass*gVelKv*(m_Vdesired.Length() - m_state[VEL]);
+		m_force = gMass*gVelKv*(m_Vdesired - m_VelB);
+		//float m_forcemag = gMass*gVelKv*(m_Vdesired.Length() - m_VelB.Length());
+		//m_force = m_Vdesired*m_forcemag / m_Vdesired.Length();
 
 
+		float thetad;
+		//Want angle between m_Vdesired and world x axis
+		
+		vec3 unitxAxis = vec3(1.0, 0.0, 0.0);
+		vec3 unitVdesired = m_Vdesired / (m_Vdesired.Length());
+		/*if ((abs(Dot(unitxAxis, unitVdesired)) > 0.00001f) && (Dot(unitxAxis, unitVdesired) < 0)) {
+			thetad = acos(Dot(-unitxAxis, unitVdesired));
+			if (Dot(-unitxAxis, unitVdesired) > 1.0) {
+				thetad = acos(1.0);
+			}
+			if (Dot(-unitxAxis, unitVdesired) < -1.0) {
+				thetad = acos(-1.0);
+			}
+		}
+		else {*/
+		thetad = acos(Dot(unitxAxis, unitVdesired));
+		if (Dot(unitxAxis, unitVdesired) > 1.0) {
+			thetad = acos(1.0);
+		}
+		if (Dot(unitxAxis, unitVdesired) < -1.0) {
+			thetad = acos(-1.0);
+		}
+		
+		//vec3 thetadvector = vec3(0.0, m_Euler[1]+atan2(unitVdesired[0], unitVdesired[2]), 0.0);
+		vec3 thetadvector = vec3(0.0, thetad, 0.0);
+
+		m_torque = gInertia * (-gOriKv * m_AVelB + gOriKp * (thetadvector - m_Euler));
+
+		//Apply max limits
+		float forcemag = sqrt(m_force[0] * m_force[0] + m_force[1] * m_force[1] + m_force[2] * m_force[2]);
+		if (gMaxForce < forcemag) {
+			m_force = (m_force / forcemag)*gMaxForce;//Convert to unit vector, apply new magnitude
+		}
+		float torquemag = sqrt(m_torque[0] * m_torque[0] + m_torque[1] * m_torque[1] + m_torque[2] * m_torque[2]);
+		if (gMaxTorque < torquemag) {
+			m_torque = (m_torque / torquemag)*gMaxTorque;//Convert to unit vector, apply new magnitude
+		}
+
+		//Also calculate m_vd
+		m_vd = m_Vdesired.Length();
 
 
 
@@ -216,10 +263,14 @@ void BehaviorController::computeDynamics(vector<vec3>& state, vector<vec3>& cont
 
 
 	//Looking at the aBehaviorController.h gives me ideas for most if not all
-	stateDot[0] = state[2];
+	stateDot[0][0] = state[2][2]*cos(state[1][1]);
+	stateDot[0][1] = 0.0;
+	stateDot[0][2] = state[2][2] * sin(state[1][1]);
 	stateDot[1] = state[3];
 	stateDot[2] = force / gMass;
 	stateDot[3] = torque / gInertia;
+
+	m_Vel0 = state[2];
 
 
 
@@ -279,10 +330,20 @@ void BehaviorController::updateState(float deltaT, int integratorType)
 	//  Perform validation check to make sure all values are within MAX values
 	// TODO: add your code here
 
-	double speed = sqrt(m_VelB[0] * m_VelB[0] + m_VelB[1] * m_VelB[1] + m_VelB[2] * m_VelB[2]);
-	double angspeed = sqrt(m_VelB[0] * m_VelB[0] + m_VelB[1] * m_VelB[1] + m_VelB[2] * m_VelB[2]);
-	//m_VelB[0] = max(m_VelB[0], gMaxSpeed[0]);
-	//m_AVelB = max(m_VelB, gMaxAngularSpeed);
+	float speed = sqrt(m_VelB[0] * m_VelB[0] + m_VelB[1] * m_VelB[1] + m_VelB[2] * m_VelB[2]);
+	float angspeed = sqrt(m_AVelB[0] * m_AVelB[0] + m_AVelB[1] * m_AVelB[1] + m_AVelB[2] * m_AVelB[2]);
+	if (gMaxSpeed < speed) {
+		m_VelB = (m_VelB / speed)*gMaxSpeed;//Convert to unit vector, apply new magnitude
+	}
+	if (gMaxAngularSpeed < angspeed) {
+		m_AVelB = (m_AVelB / angspeed)*gMaxAngularSpeed;//Convert to unit vector, apply new magnitude
+	}
+
+	//For Vel0
+	float zerospeed = sqrt(m_Vel0[0] * m_Vel0[0] + m_Vel0[1] * m_Vel0[1] + m_Vel0[2] * m_Vel0[2]);
+	if (gMaxSpeed < zerospeed) {
+		m_Vel0 = (m_Vel0 / zerospeed)*gMaxSpeed;//Convert to unit vector, apply new magnitude
+	}
 
 
 
