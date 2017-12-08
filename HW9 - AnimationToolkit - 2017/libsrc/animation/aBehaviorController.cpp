@@ -165,42 +165,31 @@ void BehaviorController::control(double deltaT)
 
 		// TODO: insert your code here to compute m_force and m_torque
 
+		//Calculate m_vd
+		m_vd = m_Vdesired.Length();
 
 		//The Kv , Kv, and Kp have already been changed in the place from which they are drawn
 		//They were based on calculations done elsewhere
-		//m_force = gMass*gVelKv*(m_Vdesired.Length() - m_state[VEL]);
-		m_force = gMass*gVelKv*(m_Vdesired - m_VelB);
-		//float m_forcemag = gMass*gVelKv*(m_Vdesired.Length() - m_VelB.Length());
-		//m_force = m_Vdesired*m_forcemag / m_Vdesired.Length();
 
+		////Only the Z section matters for force
+		m_force = vec3(0.0, 0.0, 0.0);
+		m_force[2] = gMass*gVelKv*(m_vd - m_state[VEL][2]);
 
-		float thetad;
 		//Want angle between m_Vdesired and world x axis
 		
 		vec3 unitxAxis = vec3(1.0, 0.0, 0.0);
 		vec3 unitVdesired = m_Vdesired / (m_Vdesired.Length());
-		/*if ((abs(Dot(unitxAxis, unitVdesired)) > 0.00001f) && (Dot(unitxAxis, unitVdesired) < 0)) {
-			thetad = acos(Dot(-unitxAxis, unitVdesired));
-			if (Dot(-unitxAxis, unitVdesired) > 1.0) {
-				thetad = acos(1.0);
-			}
-			if (Dot(-unitxAxis, unitVdesired) < -1.0) {
-				thetad = acos(-1.0);
-			}
-		}
-		else {*/
-		thetad = acos(Dot(unitxAxis, unitVdesired));
-		if (Dot(unitxAxis, unitVdesired) > 1.0) {
-			thetad = acos(1.0);
-		}
-		if (Dot(unitxAxis, unitVdesired) < -1.0) {
-			thetad = acos(-1.0);
-		}
-		
-		//vec3 thetadvector = vec3(0.0, m_Euler[1]+atan2(unitVdesired[0], unitVdesired[2]), 0.0);
-		vec3 thetadvector = vec3(0.0, thetad, 0.0);
+		double thetad;
 
-		m_torque = gInertia * (-gOriKv * m_AVelB + gOriKp * (thetadvector - m_Euler));
+		thetad = atan2(m_Vdesired[2], m_Vdesired[0]);
+		ClampAngle(thetad);
+		m_thetad = thetad;
+		double needsclamping = m_thetad - m_Euler[1];
+		ClampAngle(needsclamping);
+
+		//Only the Y section matters for torque
+		m_torque = vec3(0.0, 0.0, 0.0);
+		m_torque[1] = gInertia * (-gOriKv * m_AVelB[1] + gOriKp * (needsclamping));
 
 		//Apply max limits
 		float forcemag = sqrt(m_force[0] * m_force[0] + m_force[1] * m_force[1] + m_force[2] * m_force[2]);
@@ -212,8 +201,7 @@ void BehaviorController::control(double deltaT)
 			m_torque = (m_torque / torquemag)*gMaxTorque;//Convert to unit vector, apply new magnitude
 		}
 
-		//Also calculate m_vd
-		m_vd = m_Vdesired.Length();
+		
 
 
 
@@ -263,14 +251,14 @@ void BehaviorController::computeDynamics(vector<vec3>& state, vector<vec3>& cont
 
 
 	//Looking at the aBehaviorController.h gives me ideas for most if not all
-	stateDot[0][0] = state[2][2]*cos(state[1][1]);
+	stateDot[0][0] = state[2][2] * cos(state[1][1]);//+ state[2][0] * cos(state[1][1]);
 	stateDot[0][1] = 0.0;
-	stateDot[0][2] = state[2][2] * sin(state[1][1]);
+	stateDot[0][2] = state[2][2] * sin(state[1][1]);//- state[2][0] * sin(state[1][1]);
 	stateDot[1] = state[3];
 	stateDot[2] = force / gMass;
 	stateDot[3] = torque / gInertia;
 
-	m_Vel0 = state[2];
+	m_Vel0 = stateDot[0];
 
 
 
