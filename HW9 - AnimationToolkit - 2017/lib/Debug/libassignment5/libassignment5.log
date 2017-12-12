@@ -1,4 +1,12 @@
 ﻿  aBehaviors.cpp
+aBehaviors.cpp(251): warning C4018: '<': signed/unsigned mismatch
+aBehaviors.cpp(435): warning C4018: '<': signed/unsigned mismatch
+aBehaviors.cpp(489): warning C4018: '<': signed/unsigned mismatch
+aBehaviors.cpp(546): warning C4018: '<': signed/unsigned mismatch
+aBehaviors.cpp(609): warning C4018: '<': signed/unsigned mismatch
+aBehaviors.cpp(622): warning C4018: '<': signed/unsigned mismatch
+aBehaviors.cpp(640): warning C4018: '<': signed/unsigned mismatch
+aBehaviors.cpp(710): warning C4018: '<': signed/unsigned mismatch
   libassignment5.vcxproj -> \\nestor\hokun\GitHub\hw9-behavioral-animation-harry8989\HW9 - AnimationToolkit - 2017\libsrc\animation\..\..\lib\libassignment5d.lib
   aActor.h
   aBVHController.h

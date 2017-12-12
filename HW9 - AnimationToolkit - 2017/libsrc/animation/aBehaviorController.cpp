@@ -216,6 +216,8 @@ void BehaviorController::control(double deltaT)
 		{
 			m_force[2] = 0.0;
 			m_torque[1] = 0.0;
+			m_state[VEL][2] = 0.0;//So that arrival doesn't spin when it gets to the dot
+			m_state[AVEL][1] = 0.0;//So that arrival doesn't spin when it gets to the dot
 		}
 	}
 	else
